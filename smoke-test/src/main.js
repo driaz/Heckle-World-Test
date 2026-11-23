@@ -2,11 +2,12 @@ import * as THREE from 'three';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 import { Batcher, mulberry32, xf } from './util.js';
 import { makeMaterials, defineBatches } from './materials.js';
-import { makeIsland, buildIsland, addStairs, fence, orangeBlock, ramp, scatterFlora, tuft, flower, vines, moss, meshyMode } from './world.js';
+import { makeIsland, buildIsland, addStairs, fence, orangeBlock, ramp, scatterFlora, tuft, flower, vines, meshyMode } from './world.js';
 import { makeDecalMaterials, pathRibbon, dirtPatch } from './decals.js';
-import { GTAOPass } from 'three/examples/jsm/postprocessing/GTAOPass.js';
+import { loadIslands, addBackgroundIslands } from './islands.js';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
-import { makeSky, makeClouds, makeDistantIslands } from './sky.js';
+import { makeSky, makeClouds, makeEnvMap } from './sky.js';
+import { ShaderPass } from 'three/examples/jsm/postprocessing/ShaderPass.js';
 import { loadProps, instanceProp } from './props.js';
 import { EffectComposer } from 'three/examples/jsm/postprocessing/EffectComposer.js';
 import { RenderPass } from 'three/examples/jsm/postprocessing/RenderPass.js';
@@ -26,7 +27,7 @@ renderer.shadowMap.enabled = true;
 renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 renderer.outputColorSpace = THREE.SRGBColorSpace;
 renderer.toneMapping = THREE.NeutralToneMapping;
-renderer.toneMappingExposure = 1.0;
+renderer.toneMappingExposure = 1.06;
 document.body.appendChild(renderer.domElement);
 
 const scene = new THREE.Scene();
@@ -46,27 +47,32 @@ function place(sx, sy, d) {
 }
 
 // ---------------------------------------------------------------- lights
-scene.add(new THREE.HemisphereLight(0xd8ecff, 0xa98a62, 1.15));
-const sun = new THREE.DirectionalLight(0xfff0d0, 2.9);
-const sunDir = new THREE.Vector3(0.42, 0.78, 0.5).normalize();
+// Sky/bounce light on the islands is baked in Blender (lightMap). Real-time: a warm sun with one shadow map, plus a
+// soft hemisphere fill for the non-baked props. No screen-space AO.
+const hemi = new THREE.HemisphereLight(0xd6e6ff, 0xb39a7c, 0.32);
+scene.add(hemi);
+const sun = new THREE.DirectionalLight(0xffe0b0, 3.0);
+const sunDir = new THREE.Vector3(-0.4, 0.83, 0.39).normalize(); // upper-left-front, as in the reference
 const shadowCenter = new THREE.Vector3(3, 6, 12);
 sun.position.copy(shadowCenter).addScaledVector(sunDir, 80);
 sun.target.position.copy(shadowCenter);
 sun.castShadow = true;
-sun.shadow.mapSize.set(4096, 4096);
+sun.shadow.mapSize.set(2048, 2048);
 Object.assign(sun.shadow.camera, { left: -34, right: 34, top: 34, bottom: -34, near: 10, far: 170 });
-sun.shadow.bias = -0.0004;
-sun.shadow.normalBias = 0.03;
-sun.shadow.radius = 2.5;
+sun.shadow.bias = -0.0005;
+sun.shadow.normalBias = 0.04;
 scene.add(sun, sun.target);
-// cool bounce from below/front so undersides read blue-grey instead of black
-const fill = new THREE.DirectionalLight(0xb4ccf5, 1.15);
-fill.position.set(-0.35, -0.7, 0.6);
-scene.add(fill);
+const useBake = params.get('lm') !== '0'; // ?lm=0: drop the baked lightmaps and light the islands with the hemisphere light instead (A/B)
+if (!useBake) hemi.intensity = 1.15;
+// distance haze
+scene.fog = new THREE.Fog(0xb4daf6, 52, 440);
+// small procedural sky environment: glossy reflections on coins/pad, a soft sheen on stone
+const envMap = makeEnvMap(renderer, sunDir);
+scene.environment = envMap;
+scene.environmentIntensity = 0.3;
 
 // ---------------------------------------------------------------- sky
-const noAO = [makeSky(), makeClouds(place, REF_FOV), makeDistantIslands(place, REF_FOV)];
-scene.add(...noAO);
+scene.add(makeSky(), makeClouds(place, REF_FOV));
 const decalMats = makeDecalMaterials();
 const decal = (m) => { if (!meshyMode.on) scene.add(m); };
 
@@ -111,11 +117,11 @@ decal(pathA.mesh);
 decal(dirtPatch(A, 4.5, 3.5, 0.75, 0.42, 2 * LV + 0.035, decalMats.patch));
 decal(dirtPatch(A, 5.6, 5.5, 1.7, 0.42, LV + 0.035, decalMats.patch));
 const avoidA = [[5.5, 7.3, 1.25], ...pathA.circles, [4.5, 3.5, 0.7], [5.6, 5.5, 0.9], [3.95, 11.2, 0.6]];
-moss(B, A, { seed: 91, per: 6, avoid: avoidA });
 P.pine.push({ pos: A.L(0.7, 0, 5.2), height: 3.7, yaw: 0.4 });
 P.bush.push({ pos: A.L(0.3, -0.05, 6.4), height: 0.9, yaw: 0 }, { pos: A.L(0.6, -0.05, 7.6), height: 0.85, yaw: 2 }, { pos: A.L(2.6, 3 * LV - 0.05, 1.6), height: 0.72, yaw: 1 });
 P.coin.push({ pos: A.L(7.6, 0.25, 7.7), height: 0.8, yaw: 0.25 });
 for (const x of [3.5, 4.2, 4.9]) P.coin.push({ pos: A.L(x, 3 * LV + 0.75, 1.5), height: 0.68, yaw: 0.25 });
+A.mossAvoid = avoidA;
 scatterFlora(B, A, { seed: 5, flowers: 0.6, tufts: 0.36, avoid: [[5.5, 7.3, 1.4], [0.7, 5.2, 0.8], [0.3, 6.4, 0.7], [0.6, 7.6, 0.7], [2.6, 1.6, 0.6], [2.9, 5.8, 1.0], ...pathA.circles.map(([x, z, r]) => [x, z, r * 0.8])] });
 vines(B, A, { seed: 71, prob: 0.4, maxLen: 1.5 });
 
@@ -142,7 +148,7 @@ P.pine.push({ pos: D.L(3.6, 0, 1.0), height: 2.9, yaw: 1 }, { pos: D.L(9.9, 0, 1
 P.bush.push({ pos: D.L(10.6, -0.05, 2.2), height: 0.9, yaw: 0.6 });
 decal(dirtPatch(D, 2.7, 3.0, 2.0, 1.1, 0.035, decalMats.patch, 0.2));
 decal(dirtPatch(D, 8.1, 2.3, 0.8, 0.6, 0.035, decalMats.patch));
-moss(B, D, { seed: 92, per: 5, avoid: [[2.7, 3.0, 1.6], [8.1, 2.3, 0.7]] });
+D.mossAvoid = [[2.7, 3.0, 1.6], [8.1, 2.3, 0.7]];
 scatterFlora(B, D, { seed: 6, flowers: 0.3, tufts: 0.3, avoid: [[3.6, 1, 0.7], [9.9, 1.3, 0.7], [10.6, 2.2, 0.6], [7.0, 0.8, 0.6]] });
 
 // --- F: island under the ramp
@@ -150,7 +156,6 @@ const F = makeIsland({ origin: place(1200, 502, 57), anchor: [2, 2], yaw: -0.75 
 F.rect(0, 0, 3, 3, 0);
 buildIsland(B, F, { base: -1.4, seed: 33, taper: 3 });
 vines(B, F, { seed: 73, prob: 0.3, maxLen: 1.0 });
-moss(B, F, { seed: 95, per: 5 });
 scatterFlora(B, F, { seed: 7, flowers: 0.35, tufts: 0.4 });
 ramp(B, D.L(8.1, 0.02, 3.05), F.L(2.4, 0.08, 0.3), 2.0, 9);
 
@@ -160,7 +165,7 @@ E.rect(0, 0, 2, 2, 0);
 buildIsland(B, E, { base: -0.9, seed: 44, taper: 3 });
 P.coin.push({ pos: E.L(1.5, 0.3, 1.5), height: 0.8, yaw: 0.2 });
 decal(dirtPatch(E, 1.5, 1.5, 0.7, 0.6, 0.035, decalMats.patch));
-moss(B, E, { seed: 93, per: 5, avoid: [[1.5, 1.5, 0.65]] });
+E.mossAvoid = [[1.5, 1.5, 0.65]];
 scatterFlora(B, E, { seed: 8, flowers: 0.3, tufts: 0.25, avoid: [[1.5, 1.5, 0.5]] });
 
 // --- G: right coin island
@@ -170,7 +175,7 @@ buildIsland(B, G, { base: -1.3, seed: 55, taper: 3 });
 vines(B, G, { seed: 75, prob: 0.3, maxLen: 1.0 });
 P.coin.push({ pos: G.L(1.5, 0.3, 1.5), height: 0.8, yaw: 0.2 });
 decal(dirtPatch(G, 1.5, 1.5, 0.7, 0.6, 0.035, decalMats.patch));
-moss(B, G, { seed: 94, per: 5, avoid: [[1.5, 1.5, 0.65]] });
+G.mossAvoid = [[1.5, 1.5, 0.65]];
 scatterFlora(B, G, { seed: 9, flowers: 0.3, tufts: 0.3, avoid: [[1.5, 1.5, 0.5]] });
 
 // --- H: front island with fences + bush
@@ -181,9 +186,14 @@ vines(B, H, { seed: 76, prob: 0.3, maxLen: 1.1 });
 fence(B, H, 0.9, 1.6, 2.1, 2.5, 0, 41);
 fence(B, H, 3.5, 2.5, 4.6, 2.2, 0, 42);
 P.bush.push({ pos: H.L(2.85, -0.05, 2.6), height: 1.0, yaw: 0.3 });
-moss(B, H, { seed: 96, per: 5, avoid: [[2.85, 2.6, 0.6]] });
+H.mossAvoid = [[2.85, 2.6, 0.6]];
 scatterFlora(B, H, { seed: 10, flowers: 0.3, tufts: 0.2, avoid: [[2.85, 2.6, 0.7]] });
 
+const ISLANDS = { A, D, F, E, G, H };
+window.__layout = {
+  sunDir: sunDir.toArray(),
+  islands: Object.entries(ISLANDS).map(([name, isl]) => ({ name, M: isl.M.toArray(), yaw: isl.yaw, scale: isl.scale, cells: [...isl.cells.values()], stairs: isl.stairs || [], mossAvoid: isl.mossAvoid || [], ...isl.opts })),
+};
 const instanceCount = B.build(scene);
 if (meshyMode.on) {
   new GLTFLoader().load('./models/grass_block.glb', (g) => {
@@ -216,18 +226,16 @@ const usePost = params.get('post') !== '0';
 const size = renderer.getDrawingBufferSize(new THREE.Vector2());
 const composer = new EffectComposer(renderer, new THREE.WebGLRenderTarget(size.x, size.y, { samples: 4, type: THREE.HalfFloatType }));
 composer.addPass(new RenderPass(scene, camera));
-if (params.get('ao') !== '0') {
-  const gtao = new GTAOPass(scene, camera, size.x, size.y);
-  gtao.updateGtaoMaterial({ radius: 0.8, distanceExponent: 1.5, thickness: 1.3, scale: 1.3, samples: 16, distanceFallOff: 1, screenSpaceRadius: false });
-  gtao.blendIntensity = 0.8;
-  // keep sky, cloud sprites and distant-island sprites out of the AO depth/normal pre-pass
-  const ov = gtao.overrideVisibility.bind(gtao), rs = gtao.restoreVisibility.bind(gtao);
-  gtao.overrideVisibility = () => { ov(); for (const o of noAO) o.visible = false; };
-  gtao.restoreVisibility = () => { rs(); for (const o of noAO) o.visible = true; };
-  composer.addPass(gtao);
-}
-composer.addPass(new UnrealBloomPass(new THREE.Vector2(size.x, size.y), 0.22, 0.7, 0.82));
+composer.addPass(new UnrealBloomPass(new THREE.Vector2(size.x, size.y), 0.2, 0.8, 0.85));
 composer.addPass(new OutputPass());
+// cheap colour grade after tone mapping: a little contrast and saturation, like the painted reference
+composer.addPass(new ShaderPass({
+  uniforms: { tDiffuse: { value: null }, sat: { value: +(params.get('sat') || 0.94) }, con: { value: +(params.get('con') || 1.03) } },
+  vertexShader: 'varying vec2 vUv; void main(){ vUv = uv; gl_Position = vec4(position.xy, 0.0, 1.0); }',
+  fragmentShader: `uniform sampler2D tDiffuse; uniform float sat; uniform float con; varying vec2 vUv;
+    void main(){ vec4 c = texture2D(tDiffuse, vUv); float l = dot(c.rgb, vec3(0.299, 0.587, 0.114));
+      vec3 g = mix(vec3(l), c.rgb, sat); g = (g - 0.5) * con + 0.5; gl_FragColor = vec4(clamp(g, 0.0, 1.0), c.a); }`,
+}));
 renderer.info.autoReset = false;
 const draw = () => { renderer.info.reset(); usePost ? composer.render() : renderer.render(scene, camera); };
 window.addEventListener('keydown', (e) => { const k = { 1: 'ref', 2: 'wide', 3: 'close' }[e.key]; if (k) setCam(k); });
@@ -239,12 +247,12 @@ window.addEventListener('resize', () => {
 
 // ---------------------------------------------------------------- props (Meshy GLBs, instanced)
 const coinSpin = [];
-loadProps().then(({ props, status }) => {
+Promise.all([loadProps('./models/', { envMap }), meshyMode.on ? Promise.resolve({ tris: 0 }) : loadIslands(scene, ISLANDS, { baked: useBake }), addBackgroundIslands(scene, place, REF_FOV)]).then(([{ props, status }, isl]) => {
   for (const name of Object.keys(P)) instanceProp(scene, props[name], P[name]);
   draw();
   window.__stats = {
     props: status, propTris: Object.fromEntries(Object.entries(props).map(([k, v]) => [k, v.tris])),
-    instances: instanceCount, calls: renderer.info.render.calls, sceneTriangles: (() => { let t = 0; scene.traverse((o) => { if (o.isMesh) { const g = o.geometry; t += ((g.index ? g.index.count : g.attributes.position.count) / 3) * (o.isInstancedMesh ? o.count : 1); } }); return Math.round(t); })(),
+    instances: instanceCount, batches: (() => { const o = {}; scene.traverse((m) => { if (m.isInstancedMesh && m.name.startsWith('batch:')) { const g = m.geometry; o[m.name.slice(6)] = [m.count, Math.round((g.index ? g.index.count : g.attributes.position.count) / 3 * m.count)]; } }); return o; })(), islandTris: Math.round(isl.tris), calls: renderer.info.render.calls, sceneTriangles: (() => { let t = 0; scene.traverse((o) => { if (o.isMesh) { const g = o.geometry; t += ((g.index ? g.index.count : g.attributes.position.count) / 3) * (o.isInstancedMesh ? o.count : 1); } }); return Math.round(t); })(),
   };
   window.__ready = true;
 });

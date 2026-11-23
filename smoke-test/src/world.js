@@ -72,6 +72,8 @@ export function buildIsland(B, isl, o) {
   }
   const maxD = d - 1;
 
+  isl.opts = o;
+  if (!meshyMode.on) return { maxD }; // run 2: island blocks + moss caps are modelled and baked in Blender (blender/build_islands.py)
   for (const c of cells.values()) {
     const cx = c.i + 0.5, cz = c.j + 0.5, h = c.h;
     p.set(cx, h, cz).applyMatrix4(M);
@@ -144,6 +146,8 @@ export function buildIsland(B, isl, o) {
 }
 
 export function addStairs(B, isl, { i, j0, len = 2, h0, h1, seed = 5 }) {
+  (isl.stairs ||= []).push({ i, j0, len, h0, h1, seed });
+  return; // built in Blender
   const rng = mulberry32(seed);
   const n = Math.round((h1 - h0) / 0.27);
   const rise = (h1 - h0) / n;

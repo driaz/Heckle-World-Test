@@ -24,11 +24,6 @@ export function makeDecalMaterials() {
       wrap((ox, oy) => { g.beginPath(); g.ellipse(x + ox, y + oy, r, r * 0.7, 0, 0, 7); g.fill(); });
     }
     g.filter = 'none';
-    for (let i = 0; i < 90; i++) { // pebbles + specks
-      const x = rng() * s, y = rng() * s, r = 1 + rng() * 3.5;
-      g.fillStyle = rng() < 0.6 ? 'rgba(150,112,62,0.75)' : 'rgba(244,226,176,0.8)';
-      wrap((ox, oy) => { g.beginPath(); g.ellipse(x + ox, y + oy, r, r * 0.75, rng() * 3, 0, 7); g.fill(); });
-    }
   });
   const band = tex(256, (g, s) => {
     const rng = mulberry32(8);
