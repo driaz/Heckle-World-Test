@@ -1,0 +1,72 @@
+{
+ "E": {
+  "name": "E",
+  "tris": 8604,
+  "res": 1024,
+  "maps": 2,
+  "samples": 64,
+  "uv_s": 0.0,
+  "bake_s": 55.6,
+  "total_s": 56.6
+ },
+ "A": {
+  "name": "A",
+  "tris": 94954,
+  "res": 1024,
+  "maps": 2,
+  "samples": 64,
+  "uv_s": 0.5,
+  "bake_s": 20.7,
+  "total_s": 23.1
+ },
+ "D": {
+  "name": "D",
+  "tris": 44340,
+  "res": 1024,
+  "maps": 2,
+  "samples": 64,
+  "uv_s": 0.3,
+  "bake_s": 38.2,
+  "total_s": 39.8
+ },
+ "F": {
+  "name": "F",
+  "tris": 14364,
+  "res": 1024,
+  "maps": 2,
+  "samples": 64,
+  "uv_s": 0.1,
+  "bake_s": 49.1,
+  "total_s": 50.2
+ },
+ "G": {
+  "name": "G",
+  "tris": 8010,
+  "res": 1024,
+  "maps": 2,
+  "samples": 64,
+  "uv_s": 0.0,
+  "bake_s": 50.7,
+  "total_s": 51.5
+ },
+ "H": {
+  "name": "H",
+  "tris": 16770,
+  "res": 1024,
+  "maps": 2,
+  "samples": 64,
+  "uv_s": 0.1,
+  "bake_s": 47.8,
+  "total_s": 48.9
+ },
+ "BG": {
+  "name": "BG",
+  "tris": 3644,
+  "res": 512,
+  "maps": 1,
+  "samples": 64,
+  "uv_s": 0.0,
+  "bake_s": 3.5,
+  "total_s": 3.8
+ }
+}

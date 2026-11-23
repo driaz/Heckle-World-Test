@@ -1,0 +1,4 @@
+node_modules/
+dist/
+meshy_output/
+public/models/islands/*.png
