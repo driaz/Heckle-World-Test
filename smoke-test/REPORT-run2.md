@@ -154,9 +154,9 @@ Start 22:26 UTC. Each iteration is: change, rebake all islands (about 4.6 min in
 | 4 | 23:05 | Higher sun and lower ambient so walls are darker than tops; darker bricks and steps; finer moss colour variation. |
 | 5 | 23:11 | Moss lumps became squashed soft mounds; shorter lobes; domed coin faces (did not help: coins still read flat orange). |
 | 6 | 23:17 | Desaturated moss, sky and grade to match measured reference colours; painted gold coin faces. |
-| Report, A/B render, cleanup, PR | ~23:30 | |
+| Report, A/B render, cleanup, PR | 23:21 | |
 
-Total: **51 minutes to the final render, about 65 minutes including the report and PR.**
+Total: **51 minutes to the final render, about 55 minutes including the report and PR.**
 
 ## What didn't work or is still wrong
 
